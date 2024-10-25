@@ -6,6 +6,10 @@ import co.ke.integration.mpesa.dto.request.balance.BalanceRequest;
 import co.ke.integration.mpesa.dto.response.balance.AccountBalance;
 import co.ke.integration.mpesa.dto.response.balance.BalanceCallbackResponse;
 import co.ke.integration.mpesa.dto.response.balance.BalanceResponse;
+import co.ke.integration.mpesa.entity.BalanceQuery;
+import co.ke.integration.mpesa.entity.TransactionStatus;
+import co.ke.integration.mpesa.repository.BalanceQueryRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,24 +34,41 @@ public class BalanceService {
     private final MpesaApiClient mpesaApiClient;
     private final AuthService authService;
     private final MpesaConfig mpesaConfig;
-
+    private final BalanceQueryRepository balanceQueryRepository;
+    private final ObjectMapper objectMapper;
 
     /**
      * Query account balance from M-Pesa.
-     *
      * @param request Balance request details
      * @return BalanceResponse containing the request tracking information
      */
     public BalanceResponse queryBalance(BalanceRequest request) {
+        log.info("Initiating balance query for party: {}", request.getPartyA());
+
+        BalanceQuery balanceQuery = BalanceQuery.builder()
+                .partyA(request.getPartyA())
+                .status(TransactionStatus.INITIATED)
+                .rawRequest(toJson(request))
+                .build();
+
+        balanceQueryRepository.save(balanceQuery);
 
         String accessToken = authService.getAccessToken();
-
-        return mpesaApiClient.call(
+        BalanceResponse response = mpesaApiClient.call(
                 mpesaConfig.getBalanceurl(),
                 request,
                 BalanceResponse.class,
                 accessToken
         );
+
+        balanceQuery.setConversationId(response.getConversationID());
+        balanceQuery.setOriginatorConversationId(response.getOriginatorConversationID());
+        balanceQuery.setStatus(TransactionStatus.PENDING);
+        balanceQuery.setRawResponse(toJson(response));
+        balanceQueryRepository.save(balanceQuery);
+
+        return response;
+
     }
 
     /**
@@ -108,31 +129,37 @@ public class BalanceService {
         String conversationId = callback.getResult().getConversationID();
         log.info("Processing balance callback for conversation ID: {}", conversationId);
 
+        BalanceQuery balanceQuery = balanceQueryRepository.findByConversationId(conversationId)
+                .orElse(null);
+
+        if (balanceQuery == null) {
+            log.warn("No balance query found for conversation ID: {}", conversationId);
+            return;
+        }
+
         try {
             if ("0".equals(callback.getResult().getResultCode())) {
                 AccountBalance balance = callback.getAccountBalance();
                 if (balance != null) {
-                    log.info("Balance received for {}: {} {}",
-                            balance.getAccountType(),
-                            balance.getCurrentBalance(),
-                            balance.getCurrency()
-                    );
-                    processAccountBalance(balance);
-                } else {
-                    log.warn("No balance information in callback for conversation ID: {}",
-                            conversationId);
+                    balanceQuery.setStatus(TransactionStatus.COMPLETED);
                 }
             } else {
-                log.error("Balance query failed: {} - {}",
-                        callback.getResult().getResultCode(),
-                        callback.getResult().getResultDesc()
-                );
+                balanceQuery.setStatus(TransactionStatus.FAILED);
+                balanceQuery.setResultCode(callback.getResult().getResultCode());
+                balanceQuery.setResultDesc(callback.getResult().getResultDesc());
             }
+            balanceQueryRepository.save(balanceQuery);
+
         } catch (Exception e) {
             log.error("Error processing balance callback for conversation ID: {}",
                     conversationId, e);
+            balanceQuery.setStatus(TransactionStatus.FAILED);
+            balanceQuery.setResultDesc(e.getMessage());
+            balanceQueryRepository.save(balanceQuery);
         }
     }
+
+
 
     /**
      * Process different types of account balances.
@@ -172,4 +199,20 @@ public class BalanceService {
                 balance.getCurrentBalance(), balance.getCurrency());
         // Add business logic for settlement account balance
     }
+
+    /**
+     * Convert object to JSON string.
+     *
+     * @param object Object to convert
+     * @return JSON string or null if conversion fails
+     */
+    private String toJson(Object object) {
+        try {
+            return objectMapper.writeValueAsString(object);
+        } catch (Exception e) {
+            log.error("Error converting object to JSON", e);
+            return null;
+        }
+    }
+
 }

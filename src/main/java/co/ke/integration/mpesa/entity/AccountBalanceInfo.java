@@ -19,7 +19,7 @@ public class AccountBalanceInfo extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "balance_query_id", nullable = false)
     private BalanceQuery balanceQuery;

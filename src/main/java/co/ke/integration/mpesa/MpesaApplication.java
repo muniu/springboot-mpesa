@@ -7,6 +7,7 @@ import tech.ailef.snapadmin.external.SnapAdminAutoConfiguration;
 
 @SpringBootApplication
 @ImportAutoConfiguration(SnapAdminAutoConfiguration.class) //Enable SnapAdmin AutoConfiguration
+
 public class MpesaApplication {
 
 	public static void main(String[] args) {

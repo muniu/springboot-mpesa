@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 @Setter
 public class MpesaConfig {
 
-    private String consumerkey;
+    private String consumerKey;
     private String consumerSecret;
     private String authurl;
     private String balanceurl;

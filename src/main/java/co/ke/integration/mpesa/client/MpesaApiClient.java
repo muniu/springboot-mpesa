@@ -5,267 +5,180 @@ import co.ke.integration.mpesa.config.MpesaMetrics;
 import co.ke.integration.mpesa.dto.response.AuthResponse;
 import co.ke.integration.mpesa.exception.MpesaApiException;
 import co.ke.integration.mpesa.exception.MpesaErrorCode;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.Timer;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
-import java.net.SocketTimeoutException;
-import java.net.http.HttpHeaders;
 import java.util.UUID;
 
 /**
- * Centralized client for making M-Pesa API calls.
- * Handles all HTTP communication with M-Pesa APIs including authentication,
- * request preparation, and response handling.
+ * Centralized client for all M-Pesa API communications.
+ * Handles authentication, request/response processing, and error handling.
  *
  * @author Muniu Kariuki
  * @version 1.0
  * @since 2024-01-25
  */
-@Component
 @Slf4j
+@Component
 @RequiredArgsConstructor
 public class MpesaApiClient {
 
     private final RestTemplate restTemplate;
-    private final MpesaConfig mpesaConfig;
     private final ObjectMapper objectMapper;
+    private final MpesaConfig mpesaConfig;
     private final MpesaMetrics metrics;
 
     /**
-     * Generate OAuth token for M-Pesa API access.
+     * Makes an authenticated request to M-Pesa API.
      *
-     * @return AuthResponse containing the access token
-     * @throws MpesaApiException if authentication fails
+     * @param url          The API endpoint URL
+     * @param request      The request object
+     * @param responseType The expected response type
+     * @param accessToken  Valid access token
+     * @param <T>          Request type
+     * @param <R>          Response type
+     * @return Response from M-Pesa API
+     * @throws MpesaApiException if the request fails
      */
-    public AuthResponse authenticate() {
-        Timer.Sample timer = metrics.startAuthTimer();
-        String requestId = generateRequestId();
-
+    public <T, R> R call(String url, T request, Class<R> responseType, String accessToken) {
+        String requestId = UUID.randomUUID().toString();
         try {
-            log.debug("Initiating M-Pesa authentication request [{}]", requestId);
-            //metrics.incrementAuthRequests();
+            HttpEntity<T> requestEntity = createRequestEntity(request, accessToken);
+            logRequest(url, request, requestId);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setBasicAuth(mpesaConfig.getConsumerKey(), mpesaConfig.getConsumerSecret());
-
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            String url = mpesaConfig.getAuthUrl() + "?grant_type=client_credentials";
-
-            ResponseEntity<AuthResponse> response = executeRequest(
-                    url,
-                    HttpMethod.GET,
-                    request,
-                    AuthResponse.class,
-                    requestId
-            );
-
-            log.info("Successfully obtained auth token [{}]", requestId);
-            return response.getBody();
-
-        } catch (Exception e) {
-            metrics.incrementAuthFailures();
-            handleAuthenticationError(e, requestId);
-            return null; // Never reached, handleAuthenticationError will throw
-        } finally {
-            //timer.stop(metrics.getAuthTimer());
-        }
-    }
-
-    /**
-     * Make a POST request to M-Pesa API.
-     *
-     * @param url API endpoint
-     * @param request Request body
-     * @param responseType Expected response type
-     * @param operationType Operation being performed (for metrics)
-     * @param accessToken Valid access token
-     * @return Response from the API
-     * @throws MpesaApiException if the API call fails
-     */
-    public <T, R> R post(String url, T request, Class<R> responseType,
-                         String operationType, String accessToken) {
-        //Timer.Sample timer = metrics.startOperationTimer(operationType);
-        String requestId = generateRequestId();
-
-        try {
-            log.debug("Making M-Pesa API request - Type: {} [{}]", operationType, requestId);
-            //metrics.incrementRequests(operationType);
-
-            HttpHeaders headers = createHeaders(accessToken);
-            logRequest(request, url, requestId);
-
-            HttpEntity<T> requestEntity = new HttpEntity<>(request, headers);
-            ResponseEntity<R> response = executeRequest(
+            ResponseEntity<R> response = restTemplate.exchange(
                     url,
                     HttpMethod.POST,
                     requestEntity,
-                    responseType,
-                    requestId
+                    responseType
             );
 
             logResponse(response, requestId);
             return response.getBody();
 
         } catch (Exception e) {
-            //metrics.incrementFailures(operationType);
-            handleApiError(e, requestId, operationType);
-            return null; // Never reached, handleApiError will throw
-        } finally {
-            //timer.stop(metrics.getOperationTimer(operationType));
-        }
-    }
-
-    /**
-     * Execute HTTP request with retry logic and error handling.
-     */
-    private <T, R> ResponseEntity<R> executeRequest(String url, HttpMethod method,
-                                                    HttpEntity<?> requestEntity, Class<R> responseType, String requestId) {
-        try {
-            return restTemplate.exchange(
-                    url,
-                    method,
-                    requestEntity,
-                    responseType
-            );
-        } catch (HttpClientErrorException e) {
-            handleHttpClientError(e, requestId);
-            return null; // Never reached, handleHttpClientError will throw
-        } catch (HttpServerErrorException e) {
-            handleHttpServerError(e, requestId);
-            return null; // Never reached, handleHttpServerError will throw
-        } catch (ResourceAccessException e) {
-            handleResourceAccessError(e, requestId);
-            return null; // Never reached, handleResourceAccessError will throw
-        }
-    }
-
-    private HttpHeaders createHeaders(String accessToken) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(accessToken);
-        return headers;
-    }
-
-    /**
-     * Generic error handler for all M-Pesa API errors.
-     * Maps different types of errors to appropriate exceptions.
-     *
-     * @param e The caught exception
-     * @param requestId The unique request identifier
-     * @param operationType The type of operation that failed
-     * @throws MpesaApiException with appropriate error details
-     */
-    private void handleApiError(Exception e, String requestId, String operationType) {
-        log.error("Error during {} operation [{}]: {}", operationType, requestId, e.getMessage());
-
-        if (e instanceof HttpClientErrorException clientError) {
-            handleHttpClientError(clientError, requestId);
-        }
-        else if (e instanceof HttpServerErrorException serverError) {
-            handleHttpServerError(serverError, requestId);
-        }
-        else if (e instanceof ResourceAccessException resourceError) {
-            handleResourceAccessError(resourceError, requestId);
-        }
-        else if (e instanceof HttpMessageNotReadableException messageError) {
-            log.error("Invalid response format [{}]: {}", requestId, messageError.getMessage());
-            throw new MpesaApiException(MpesaErrorCode.INVALID_RESPONSE_FORMAT, requestId, e);
-        }
-        else {
-            log.error("Unexpected error during API call [{}]: {}", requestId, e.getMessage());
-            throw new MpesaApiException(MpesaErrorCode.INTERNAL_SERVER_ERROR, requestId, e);
-        }
-    }
-
-
-    private void handleHttpClientError(HttpClientErrorException e, String requestId) {
-        String responseBody = e.getResponseBodyAsString();
-        try {
-            ErrorDto errorDto = objectMapper.readValue(responseBody, ErrorDto.class);
-            MpesaErrorCode errorCode = MpesaErrorCode.fromCode(errorDto.getErrorCode());
-
-            if (errorCode != null) {
-                log.error("M-Pesa API client error: {} [{}]", errorCode.getMessage(), requestId);
-                throw new MpesaApiException(errorCode, requestId);
-            } else {
-                log.error("Unknown M-Pesa API error: {} [{}]", responseBody, requestId);
-                throw new MpesaApiException(MpesaErrorCode.INTERNAL_SERVER_ERROR, requestId);
-            }
-        } catch (JsonProcessingException ex) {
-            log.error("Error parsing M-Pesa error response: {} [{}]", responseBody, requestId);
+            handleApiError(e, requestId);
             throw new MpesaApiException(MpesaErrorCode.INTERNAL_SERVER_ERROR, requestId);
         }
     }
 
-    private void handleHttpServerError(HttpServerErrorException e, String requestId) {
-        log.error("M-Pesa API server error: {} [{}]", e.getMessage(), requestId);
-        throw new MpesaApiException(MpesaErrorCode.INTERNAL_SERVER_ERROR, requestId, e);
-    }
+    /**
+     * Generates authentication token from M-Pesa API.
+     *
+     * @return AuthResponse containing the access token
+     * @throws MpesaApiException if authentication fails
+     */
+    public AuthResponse authenticate() {
+        String requestId = UUID.randomUUID().toString();
+        try {
+            HttpHeaders headers = createAuthHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
 
-    private void handleResourceAccessError(ResourceAccessException e, String requestId) {
-        log.error("M-Pesa API connection error: {} [{}]", e.getMessage(), requestId);
-        throw new MpesaApiException(
-                e.getCause() instanceof SocketTimeoutException ?
-                        MpesaErrorCode.REQUEST_TIMEOUT :
-                        MpesaErrorCode.CONNECTION_ERROR,
-                requestId,
-                e
-        );
-    }
+            ResponseEntity<AuthResponse> response = restTemplate.exchange(
+                    mpesaConfig.getAuthurl() + "?grant_type=client_credentials",
+                    HttpMethod.GET,
+                    request,
+                    AuthResponse.class
+            );
 
-    private void handleAuthenticationError(Exception e, String requestId) {
-        log.error("M-Pesa authentication error: {} [{}]", e.getMessage(), requestId);
-        if (e instanceof HttpClientErrorException.Unauthorized) {
-            throw new MpesaApiException(MpesaErrorCode.INVALID_ACCESS_TOKEN, requestId, e);
-        }
-        throw new MpesaApiException(MpesaErrorCode.AUTH_ERROR, requestId, e);
-    }
-
-    private void logRequest(Object request, String url, String requestId) {
-        if (log.isDebugEnabled()) {
-            try {
-                log.debug("M-Pesa API request [{}]: URL: {}, Body: {}",
-                        requestId, url, objectMapper.writeValueAsString(request));
-            } catch (JsonProcessingException e) {
-                log.warn("Could not log request body [{}]", requestId);
+            if (response.getBody() == null) {
+                throw new MpesaApiException(MpesaErrorCode.BAD_REQUEST, requestId);
             }
+
+            return response.getBody();
+
+        } catch (Exception e) {
+            handleApiError(e, requestId);
+            throw new MpesaApiException(MpesaErrorCode.INVALID_ACCESS_TOKEN, requestId);
+        }
+    }
+
+    private <T> HttpEntity<T> createRequestEntity(T request, String accessToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(accessToken);
+        return new HttpEntity<>(request, headers);
+    }
+
+    private HttpHeaders createAuthHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBasicAuth(
+                mpesaConfig.getConsumerKey(),
+                mpesaConfig.getConsumerSecret()
+        );
+        return headers;
+    }
+
+    private <T> void logRequest(String url, T request, String requestId) {
+        try {
+            if (log.isDebugEnabled()) {
+                log.debug("M-Pesa API Request [{}]: URL: {}, Payload: {}",
+                        requestId, url, objectMapper.writeValueAsString(request));
+            }
+        } catch (Exception e) {
+            log.warn("Could not log request details [{}]", requestId, e);
         }
     }
 
     private void logResponse(ResponseEntity<?> response, String requestId) {
-        if (log.isDebugEnabled()) {
-            try {
-                log.debug("M-Pesa API response [{}]: Status: {}, Body: {}",
-                        requestId, response.getStatusCode(),
-                        objectMapper.writeValueAsString(response.getBody()));
-            } catch (JsonProcessingException e) {
-                log.warn("Could not log response body [{}]", requestId);
+        try {
+            if (log.isDebugEnabled()) {
+                log.debug("M-Pesa API Response [{}]: Status: {}, Body: {}",
+                        requestId,
+                        response.getStatusCode(),
+                        objectMapper.writeValueAsString(response.getBody())
+                );
             }
+        } catch (Exception e) {
+            log.warn("Could not log response details [{}]", requestId, e);
         }
     }
 
-    private String generateRequestId() {
-        return UUID.randomUUID().toString();
+    private void handleApiError(Exception e, String requestId) {
+        if (e instanceof HttpClientErrorException clientError) {
+            handleHttpClientError(clientError, requestId);
+        } else if (e instanceof HttpServerErrorException serverError) {
+            handleHttpServerError(serverError, requestId);
+        } else if (e instanceof ResourceAccessException resourceError) {
+            handleResourceAccessError(resourceError, requestId);
+        } else {
+            log.error("Unexpected error during API call [{}]", requestId, e);
+            throw new MpesaApiException(MpesaErrorCode.INTERNAL_SERVER_ERROR, requestId, e);
+        }
     }
 
-    /**
-     * DTO for error responses from M-Pesa API.
-     */
-    @Data
-    private static class ErrorDto {
+    private void handleHttpClientError(HttpClientErrorException e, String requestId) {
+        String responseBody = e.getResponseBodyAsString();
+        log.error("Client error during API call [{}]: {}", requestId, responseBody);
+
+        try {
+            ErrorResponse errorResponse = objectMapper.readValue(responseBody, ErrorResponse.class);
+            MpesaErrorCode errorCode = MpesaErrorCode.fromCode(errorResponse.getErrorCode());
+            throw new MpesaApiException(errorCode, requestId, e);
+        } catch (Exception ex) {
+            throw new MpesaApiException(MpesaErrorCode.BAD_REQUEST, requestId, e);
+        }
+    }
+
+    private void handleHttpServerError(HttpServerErrorException e, String requestId) {
+        log.error("Server error during API call [{}]: {}", requestId, e.getResponseBodyAsString());
+        throw new MpesaApiException(MpesaErrorCode.INTERNAL_SERVER_ERROR, requestId, e);
+    }
+
+    private void handleResourceAccessError(ResourceAccessException e, String requestId) {
+        log.error("Network error during API call [{}]", requestId, e);
+        throw new MpesaApiException(MpesaErrorCode.INTERNAL_SERVER_ERROR, requestId, e);
+    }
+
+    @lombok.Data
+    private static class ErrorResponse {
         private String requestId;
         private String errorCode;
         private String errorMessage;

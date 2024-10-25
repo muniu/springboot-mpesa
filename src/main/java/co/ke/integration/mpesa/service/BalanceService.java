@@ -1,5 +1,6 @@
 package co.ke.integration.mpesa.service;
 
+import co.ke.integration.mpesa.client.MpesaApiClient;
 import co.ke.integration.mpesa.config.MpesaConfig;
 import co.ke.integration.mpesa.config.MpesaMetrics;
 import co.ke.integration.mpesa.dto.request.BalanceRequest;
@@ -35,13 +36,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BalanceService {
 
-    private final RestTemplate restTemplate;
-    private final MpesaConfig mpesaConfig;
+    private final MpesaApiClient mpesaApiClient;
     private final AuthService authService;
-    private final MpesaMetrics metrics;
+    private final MpesaConfig mpesaConfig;
 
-    @Value("${mpesa.balance.url}")
-    private String balanceUrl;
 
     /**
      * Query account balance from M-Pesa.
@@ -52,40 +50,14 @@ public class BalanceService {
      */
     public BalanceResponse queryBalance(BalanceRequest request) {
 
-        try {
-            log.info("Initiating balance query for shortcode: {}", request.getPartyA());
+        String accessToken = authService.getAccessToken();
 
-
-            String accessToken = authService.getAccessToken();
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(accessToken);
-
-            HttpEntity<BalanceRequest> requestEntity = new HttpEntity<>(request, headers);
-
-            ResponseEntity<BalanceResponse> response = restTemplate.exchange(
-                    balanceUrl,
-                    HttpMethod.POST,
-                    requestEntity,
-                    BalanceResponse.class
-            );
-
-            if (response.getBody() == null) {
-                //throw new MpesaApiException("Null response received from M-Pesa API");
-            }
-
-            log.info("Balance query initiated successfully. Conversation ID: {}",
-                    response.getBody().getConversationID());
-            return response.getBody();
-
-        } catch (Exception e) {
-
-            log.error("Error querying balance: {}", e.getMessage(), e);
-            throw new MpesaApiException("Failed to query balance", e);
-        } finally {
-
-        }
+        return mpesaApiClient.call(
+                mpesaConfig.getBalanceurl(),
+                request,
+                BalanceResponse.class,
+                accessToken
+        );
     }
 
     /**

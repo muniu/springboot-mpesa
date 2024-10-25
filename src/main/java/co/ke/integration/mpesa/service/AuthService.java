@@ -47,7 +47,7 @@ public class AuthService {
         try {
             metrics.incrementAuthRequests();
             HttpHeaders headers = new HttpHeaders();
-            headers.setBasicAuth(mpesaConfig.getConsumerkey(), mpesaConfig.getConsumerSecret());
+            headers.setBasicAuth(mpesaConfig.getConsumerKey(), mpesaConfig.getConsumerSecret());
 
             HttpEntity<String> request = new HttpEntity<>(headers);
 

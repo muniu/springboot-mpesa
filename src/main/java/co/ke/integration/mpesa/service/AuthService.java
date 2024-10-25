@@ -1,8 +1,10 @@
 package co.ke.integration.mpesa.service;
 
 import co.ke.integration.mpesa.config.MpesaConfig;
+import co.ke.integration.mpesa.config.MpesaMetrics;
 import co.ke.integration.mpesa.dto.auth.AuthToken;
 import co.ke.integration.mpesa.dto.response.AuthResponse;
+import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -22,13 +24,17 @@ public class AuthService {
     private final MpesaConfig mpesaConfig;
     private final RestTemplate restTemplate;
 
+    private final MpesaMetrics metrics;
+
     @Autowired
     public AuthService(AuthToken authToken,
                        MpesaConfig mpesaConfig,
-                       RestTemplate restTemplate) {
+                       RestTemplate restTemplate,
+                       MpesaMetrics metrics) {
         this.authToken = authToken;
         this.mpesaConfig = mpesaConfig;
         this.restTemplate = restTemplate;
+        this.metrics=metrics;
     }
     public synchronized String getAccessToken() {
         if (authToken.isValid()) {
@@ -39,7 +45,9 @@ public class AuthService {
     }
 
     private void generateNewAccessToken() {
+        Timer.Sample sample = metrics.startAuthTimer();//collecting metrics
         try {
+            metrics.incrementAuthRequests();
             HttpHeaders headers = new HttpHeaders();
             headers.setBasicAuth(mpesaConfig.getConsumerkey(), mpesaConfig.getConsumerSecret());
 
@@ -63,7 +71,10 @@ public class AuthService {
             );
 
         } catch (RestClientException e) {
+            metrics.incrementAuthFailures();//update the failure tag
             //throw new AuthenticationException("Failed to authenticate with M-Pesa", e);
+        }finally {
+            metrics.stopAuthTimer(sample);//stop the metrics timer
         }
     }
 }

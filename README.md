@@ -108,8 +108,19 @@ docker-compose down
 This will stop and remove the containers but keep the database data intact using Docker volumes.
 
 
+
 ### Access the Application
 Once the containers are up, you can test the M-Pesa API integration by hitting the endpoints exposed by the application. For example:
+
+GET /actuator/metrics
+
+GET /actuator/metrics/mpesa.auth.requests
+
+GET /actuator/metrics/mpesa.auth.duration
+
+GET /actuator/prometheus
+
+GET /actuator/health
 
 GET /api/mpesa/auth - To generate an access token.
 

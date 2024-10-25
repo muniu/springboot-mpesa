@@ -34,6 +34,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- For metrics exposure to Prometheus (optional but recommended) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- Database interactions -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -102,7 +108,16 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- SnapAdmin saves you time by providing a full-fledged database management interface so you can focus on what matters.-->
+        <dependency>
+            <groupId>tech.ailef</groupId>
+            <artifactId>snap-admin</artifactId>
+            <version>0.2.1</version>
+        </dependency>
+
     </dependencies>
+
+
 
     <build>
         <plugins>

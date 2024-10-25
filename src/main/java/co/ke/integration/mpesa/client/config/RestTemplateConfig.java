@@ -1,4 +1,4 @@
-package co.ke.integration.mpesa.config;
+package co.ke.integration.mpesa.client.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

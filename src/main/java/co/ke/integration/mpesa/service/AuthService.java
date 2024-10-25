@@ -1,57 +1,69 @@
 package co.ke.integration.mpesa.service;
 
 import co.ke.integration.mpesa.config.MpesaConfig;
-import org.json.JSONObject;
+import co.ke.integration.mpesa.dto.auth.AuthToken;
+import co.ke.integration.mpesa.dto.response.AuthResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Base64;
 
 @Service
+@Slf4j
 public class AuthService {
+    private final AuthToken authToken;
     private final MpesaConfig mpesaConfig;
+    private final RestTemplate restTemplate;
 
-    // Token holder
-    private AuthToken currentToken;
-
-    public AuthService(MpesaConfig mpesaConfig) {
+    @Autowired
+    public AuthService(AuthToken authToken,
+                       MpesaConfig mpesaConfig,
+                       RestTemplate restTemplate) {
+        this.authToken = authToken;
         this.mpesaConfig = mpesaConfig;
+        this.restTemplate = restTemplate;
     }
-
-    // Method to fetch the access token
-    // synchronized to make sure multiple concurrent requests do not trigger multiple token refreshes.
-    public synchronized String getAccessToken() throws Exception {
-        // Check if the token exists and is not expired
-        if (currentToken == null || currentToken.isExpired()) {
-            // Fetch a new token
-            fetchNewToken();
+    public synchronized String getAccessToken() {
+        if (authToken.isValid()) {
+            return authToken.getToken();
         }
-        return currentToken.getToken();
+        generateNewAccessToken();
+        return authToken.getToken();
     }
 
-    // Method to make an API request to fetch a new token
-    private void fetchNewToken() throws Exception {
-        String credentials = Base64.getEncoder().encodeToString((mpesaConfig.getconsumerKey() + ":" + mpesaConfig.getConsumerSecret()).getBytes());
+    private void generateNewAccessToken() {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBasicAuth(mpesaConfig.getConsumerkey(), mpesaConfig.getConsumerSecret());
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Basic " + credentials);
+            HttpEntity<String> request = new HttpEntity<>(headers);
 
-        RestTemplate restTemplate = new RestTemplate();
-        HttpEntity<String> entity = new HttpEntity<>(headers);
+            ResponseEntity<AuthResponse> response = restTemplate.exchange(
+                    mpesaConfig.getAuthurl() + "?grant_type=client_credentials",
+                    HttpMethod.GET,
+                    request,
+                    AuthResponse.class
+            );
 
-        // Make the request to the auth endpoint
-        ResponseEntity<String> response = restTemplate.exchange(mpesaConfig.getAuthurl(), HttpMethod.GET, entity, String.class);
+            if (response.getBody() == null) {
+                //throw new AuthenticationException("Failed to get access token from M-Pesa");
+            }
 
-        // Parse the JSON response
-        JSONObject jsonObj = new JSONObject(response.getBody());
-        String accessToken = jsonObj.getString("access_token");
-        long expiresIn = jsonObj.getLong("expires_in");
+            // Update the currentToken with the new access token and expiry time
+            authToken.update(
+                    response.getBody().getAccessToken(),
+                    response.getBody().getExpiresInSeconds()
+            );
 
-        // Update the currentToken with the new access token and expiry time
-        currentToken = new AuthToken(accessToken, expiresIn);
+        } catch (RestClientException e) {
+            //throw new AuthenticationException("Failed to authenticate with M-Pesa", e);
+        }
     }
 }

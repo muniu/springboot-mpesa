@@ -29,13 +29,6 @@ src/
 │       ├── application-dev.properties    # Development-specific properties
 │       └── application-prod.properties   # Production-specific properties
 └── test/
-└── java/
-└── com/
-└── example/
-└── mpesaintegration/
-├── controller/       # Controller tests
-├── service/          # Service tests
-└── util/             # Utility class tests
 ```
 ## Features
 

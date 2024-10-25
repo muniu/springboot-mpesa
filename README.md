@@ -3,6 +3,8 @@
 This project is a Spring Boot application that integrates with the M-Pesa APIs (Auth, C2B, B2C, and Transaction Status) and uses a PostgreSQL database. The application is containerized using Docker and Docker Compose.
 
 ### Directory Structure
+```
+
 
 src/
 ├── main/
@@ -34,7 +36,7 @@ src/
 ├── controller/       # Controller tests
 ├── service/          # Service tests
 └── util/             # Utility class tests
-
+```
 ## Features
 
 - Integration with M-Pesa APIs:

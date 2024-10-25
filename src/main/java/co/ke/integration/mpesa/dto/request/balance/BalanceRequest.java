@@ -1,4 +1,4 @@
-package co.ke.integration.mpesa.dto.request;
+package co.ke.integration.mpesa.dto.request.balance;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -1,4 +1,4 @@
-package co.ke.integration.mpesa.dto.auth;
+package co.ke.integration.mpesa.dto.request.auth;
 
 import lombok.Getter;
 import org.springframework.stereotype.Component;

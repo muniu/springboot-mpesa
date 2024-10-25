@@ -1,4 +1,4 @@
-package co.ke.integration.mpesa.dto.response;
+package co.ke.integration.mpesa.dto.response.balance;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

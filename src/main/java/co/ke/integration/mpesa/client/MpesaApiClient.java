@@ -2,7 +2,7 @@ package co.ke.integration.mpesa.client;
 
 import co.ke.integration.mpesa.config.MpesaConfig;
 import co.ke.integration.mpesa.config.MpesaMetrics;
-import co.ke.integration.mpesa.dto.response.AuthResponse;
+import co.ke.integration.mpesa.dto.response.auth.AuthResponse;
 import co.ke.integration.mpesa.exception.MpesaApiException;
 import co.ke.integration.mpesa.exception.MpesaErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;

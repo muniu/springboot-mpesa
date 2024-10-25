@@ -1,4 +1,4 @@
-package co.ke.integration.mpesa.dto.response;
+package co.ke.integration.mpesa.dto.response.auth;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

@@ -2,8 +2,8 @@ package co.ke.integration.mpesa.service;
 
 import co.ke.integration.mpesa.config.MpesaConfig;
 import co.ke.integration.mpesa.config.MpesaMetrics;
-import co.ke.integration.mpesa.dto.auth.AuthToken;
-import co.ke.integration.mpesa.dto.response.AuthResponse;
+import co.ke.integration.mpesa.dto.request.auth.AuthToken;
+import co.ke.integration.mpesa.dto.response.auth.AuthResponse;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,8 +14,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-
-import java.util.Base64;
 
 @Service
 @Slf4j

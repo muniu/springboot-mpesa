@@ -14,5 +14,7 @@ public class MpesaConfig {
     private String authurl;
     private String balanceurl;
 
+    private String c2bregisterUrl;
+
 
 }

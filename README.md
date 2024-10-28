@@ -1,11 +1,39 @@
 # Spring Boot M-Pesa Integration Project
 
-This project is a Spring Boot application that integrates with the M-Pesa APIs (Auth, C2B, B2C, and Transaction Status) and uses a PostgreSQL database. The application is containerized using Docker and Docker Compose.
+This project is a Spring Boot application that integrates with the M-Pesa APIs (Auth, C2B, B2C, and Transaction Status) and uses a PostgreSQL (H2 for dev) database. The application is containerized using Docker and Docker Compose.
 
 ## Features
 
-* **M-Pesa API Integration:**
-  * Supported APIs: B2B, B2C, C2B, Pay Bill, Buy Goods
+### Implemented APIs
+- **Authentication**
+  - OAuth token generation
+  - Token management
+
+- **Account Balance**
+  - Query account balance
+  - Handle validation and confirmation
+  - Support for different account types (Working, Utility, Charges)
+
+- **Business to Customer (B2C)**
+  - Support for different payment types:
+    - Salary Payment
+    - Business Payment
+    - Promotion Payment
+  - Callback handling
+  - Timeout management
+- **Customer to Business (C2B)**
+  - - Buy Goods
+    - Pay Bill
+  **Transaction Status**
+    - Query the status of transactions
+
+### Coming Soon
+- Business to Business (B2B)
+- Transaction Reversal
+- Tax Remittance
+
+### Key Technical Details:
+* **Code structure:**
   * Centralized Communication: Single point of access for all M-Pesa API calls
   * Consistent Error Handling: Standardized error handling with retry mechanisms
   * Standardized Logging: Request and response logging at DEBUG level
@@ -22,7 +50,7 @@ This project is a Spring Boot application that integrates with the M-Pesa APIs (
 * **Support Services:**
   * Balance Inquiry: Provides functionalities for querying M-Pesa account balances
   * Transaction Status Check: Enables checking the status of initiated transactions
-  * Reversals: Implements reversal functionalities for failed or erroneous transactions
+  * Reversals: Implements reversal functionalities for failed or erroneous transactions - TODO
 * **Clean Code Structure:**
   * Separation of Concerns: Well-defined DTOs, entities, repositories, and services for each transaction type
   * Maintainability: Adherence to best practices for code organization and maintainability
@@ -30,23 +58,30 @@ This project is a Spring Boot application that integrates with the M-Pesa APIs (
 ## Technologies Used
 
 - Java 17
-- Spring Boot
-- Maven
-- PostgreSQL for transaction management in a production environment. (For development purposes, the built-in H2 database can be used).
-- Docker
-- Docker Compose
-- RestTemplate for REST API calls
-
-## Prerequisites
-
-Before you begin, ensure you have the following installed:
-
-- [Java 17](https://www.oracle.com/java/technologies/javase-jdk17-downloads.html)
-- [Maven 3.8+](https://maven.apache.org/install.html)
-- [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
+- Spring Boot 3.x
+- Spring Data JPA
+- PostgreSQL
+- Lombok
+- OpenAPI (Swagger)
 
 ## Project Structure
+
+```plaintext
+src/
+├── main/
+│   ├── java/
+│   │   └── co/ke/integration/mpesa/
+│   │       ├── client/        # HTTP clients
+│   │       ├── config/        # Configuration classes
+│   │       ├── controller/    # REST endpoints
+│   │       ├── dto/           # Data Transfer Objects
+│   │       ├── entity/        # Database entities
+│   │       ├── exception/     # Exception handling
+│   │       ├── repository/    # Data access
+│   │       ├── service/       # Business logic
+│   │       └── util/          # Utility classes
+│   └── resources/
+│       └── application.properties
 
 
 

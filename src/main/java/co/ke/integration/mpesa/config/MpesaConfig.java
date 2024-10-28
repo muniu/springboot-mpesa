@@ -16,5 +16,7 @@ public class MpesaConfig {
 
     private String c2bregisterUrl;
 
+    private String b2curl;
+
 
 }
